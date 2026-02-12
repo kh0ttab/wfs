@@ -49,7 +49,7 @@ def get_standard_headers(token):
     }
 
 # ===========================
-# 2. FETCH INVENTORY
+# 2. FETCH INVENTORY (ROBUST DEBUG VERSION)
 # ===========================
 @st.cache_data(ttl=1800)
 def fetch_wfs_inventory():
@@ -65,9 +65,26 @@ def fetch_wfs_inventory():
         while True:
             params = {"offset": offset, "limit": limit}
             response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            data = response.json()
             
+            # --- DEBUG BLOCK START ---
+            # If we get an empty response or non-JSON, handle it gracefully
+            if not response.text:
+                # If it's the first page and empty, assume no inventory
+                if offset == 0:
+                    return pd.DataFrame()
+                break # Stop loop if empty
+            # --- DEBUG BLOCK END ---
+
+            response.raise_for_status()
+            
+            try:
+                data = response.json()
+            except ValueError:
+                st.warning(f"Walmart API Error: Received invalid JSON. Status: {response.status_code}")
+                # Optional: Show raw text if debugging needed (comment out for production)
+                # st.code(response.text) 
+                break
+
             # Check total count on first run
             if offset == 0 and data.get('headers', {}).get('totalCount', 0) == 0:
                 return pd.DataFrame()
@@ -103,7 +120,7 @@ def fetch_wfs_inventory():
         st.stop()
 
 # ===========================
-# 3. FETCH SALES
+# 3. FETCH SALES (ROBUST DEBUG VERSION)
 # ===========================
 @st.cache_data(ttl=3600)
 def fetch_recent_sales_velocity():
@@ -122,6 +139,11 @@ def fetch_recent_sales_velocity():
 
     try:
         response = requests.get(url, headers=headers, params=params)
+        
+        # Check for empty response
+        if not response.text:
+            return pd.DataFrame(columns=['SKU', 'Sales Last 7 Days', '7-Day Velocity (WADS)'])
+
         response.raise_for_status()
         data = response.json()
         
