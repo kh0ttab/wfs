@@ -47,7 +47,8 @@ def get_access_token():
         return token_data['access_token']
     except requests.exceptions.RequestException as e:
         st.error(f"Failed to authenticate with Walmart API: {e}")
-        if 'response' in locals() and response.text:
+        # Only try to show response text if the variable exists
+        if 'response' in locals() and response is not None and response.text:
              with st.expander("See API Error Response"):
                  st.code(response.text)
         st.stop()
@@ -63,7 +64,7 @@ def get_standard_headers(token):
     }
 
 # ===========================
-# 2. FETCH WFS INVENTORY (WITH PAGINATION - STABLE)
+# 2. FETCH WFS INVENTORY (WITH PAGINATION - STABLE NO UI)
 # ===========================
 @st.cache_data(ttl=1800) # Cache data for 30 minutes
 def fetch_wfs_inventory():
@@ -74,14 +75,14 @@ def fetch_wfs_inventory():
     
     all_items = []
     offset = 0
-    limit = 50 # Fetch 50 items per page to speed things up
+    limit = 50 # Fetch 50 items per page
     total_count = 1 # Initialize to enter the loop
     
-    # REMOVED: status_placeholder = st.empty() and st.toast to fix caching error
+    # NO ST.EMPTY OR UI ELEMENTS HERE
 
     try:
         while offset < total_count:
-            # REMOVED: status_placeholder.info(...)
+            # NO ST.INFO HERE
 
             params = {
                 "offset": offset,
@@ -96,7 +97,6 @@ def fetch_wfs_inventory():
             if offset == 0:
                 total_count = data.get('headers', {}).get('totalCount', 0)
                 if total_count == 0:
-                    # REMOVED: status_placeholder.warning(...)
                     return pd.DataFrame()
 
             # Extract items from the current page
@@ -108,14 +108,13 @@ def fetch_wfs_inventory():
             
             # Prepare for next page
             offset += limit
-            # A small pause to be polite to the API endpoint
-            time.sleep(0.2)
+            time.sleep(0.2) # Be polite to the API
             
-            # Safety break to prevent infinite loops in case of API weirdness
-            if offset > 10000: 
+            # Safety break
+            if offset > 15000: 
                 break
 
-        # REMOVED: status_placeholder.success(...) and status_placeholder.empty()
+        # NO ST.SUCCESS HERE
 
         # ---- PROCESS ALL COLLECTED DATA ----
         processed_data = []
@@ -133,26 +132,23 @@ def fetch_wfs_inventory():
                 # The API response doesn't include product name, use SKU as fallback
                 "Product Name": item.get('sku', 'N/A'), 
                 "Current Stock (WFS)": current_stock,
-                # The API response doesn't show inbound stock, set to 0
                 "Inbound Stock": 0
             })
             
         return pd.DataFrame(processed_data)
 
     except requests.exceptions.RequestException as e:
-        # REMOVED: status_placeholder.empty()
         st.error(f"Error fetching WFS inventory: {e}")
-        if 'response' in locals() and response.text:
+        if 'response' in locals() and response is not None and response.text:
              with st.expander("See API Error Response"):
                  st.code(response.text)
         st.stop()
     except Exception as e:
-        # REMOVED: status_placeholder.empty()
         st.error(f"An unexpected error occurred processing inventory data: {e}")
         st.stop()
 
 # ===========================
-# 3. FETCH SALES HISTORY
+# 3. FETCH SALES HISTORY (STABLE NO UI)
 # ===========================
 @st.cache_data(ttl=3600) # Cache for 1 hour
 def fetch_recent_sales_velocity():
@@ -178,8 +174,7 @@ def fetch_recent_sales_velocity():
     all_order_lines = []
 
     try:
-        # NOTE: A robust production app must handle pagination (using 'nextCursor').
-        # This version fetches only the first page of 200 orders for simplicity.
+        # NOTE: This version fetches only the first page of 200 orders.
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         data = response.json()
@@ -188,7 +183,6 @@ def fetch_recent_sales_velocity():
         orders = data.get('list', {}).get('elements', {}).get('order', [])
         
         if not orders:
-            # st.info("No orders found in the last 7 days.")
             return pd.DataFrame(columns=['SKU', 'Sales Last 7 Days', '7-Day Velocity (WADS)'])
 
         for order in orders:
@@ -222,7 +216,7 @@ def fetch_recent_sales_velocity():
 
     except requests.exceptions.RequestException as e:
         st.warning(f"Could not fetch sales history from API: {e}. Velocity metrics will be set to 0.")
-        if 'response' in locals() and response.text:
+        if 'response' in locals() and response is not None and response.text:
              with st.expander("See API Error Response"):
                  st.code(response.text)
         # Return empty dataframe so app can continue running
