@@ -49,7 +49,7 @@ def get_standard_headers(token):
     }
 
 # ===========================
-# 2. FETCH INVENTORY (STABLE)
+# 2. FETCH INVENTORY
 # ===========================
 @st.cache_data(ttl=1800)
 def fetch_wfs_inventory():
@@ -103,7 +103,7 @@ def fetch_wfs_inventory():
         st.stop()
 
 # ===========================
-# 3. FETCH SALES (STABLE)
+# 3. FETCH SALES
 # ===========================
 @st.cache_data(ttl=3600)
 def fetch_recent_sales_velocity():
